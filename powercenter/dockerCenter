@@ -1,0 +1,14 @@
+FROM koda_baseimg
+ENV POWERCENTER_UDP_PORT=50000
+ENV POWERCENTER_TCP_PORT=80
+ENV POWERCENTER_LOG_DIRECTORY="./log/"
+ENV POWERCENTER_DATA_DIRECTORY="./data"
+WORKDIR /var/powercenter
+COPY ./src/ ./
+RUN mkdir data && touch data/history && touch data/list
+RUN mkdir log && touch log/access.log
+RUN make
+RUN make clean
+EXPOSE 50000/udp
+EXPOSE 80/tcp
+CMD ["./powercenter"]

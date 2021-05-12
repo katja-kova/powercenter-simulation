@@ -1,0 +1,16 @@
+#FROM docker.io/ubuntu:latest
+FROM koda_baseimg
+ENV participantMode "$participantMode"
+ENV participantID "$participantID"
+ENV participantDesIP "$participantDesIP"
+ENV participantDesPort "$participantDesPort"
+
+#RUN apt-get update && apt-get upgrade -y && apt-get install make g++ -y
+#RUN apt-get install --reinstall pkg-config cmake-data -y
+
+COPY . /usr/src/participant/
+WORKDIR /usr/src/participant/
+
+RUN make
+RUN make clean
+CMD ./participant $participantMode $participantID $participantDesIP $participantDesPort
