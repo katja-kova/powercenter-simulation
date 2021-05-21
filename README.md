@@ -1,4 +1,4 @@
-Powercenter-Simulation
+# Powercenter-Simulation
 
 ## About The Project
 
@@ -28,6 +28,6 @@ be developed. The following technologies are to be used: Sockets, RPC (Apache Th
     ```
 4. Check the data in the browser under `localhost/history`
 
-### License
+## License
 
 Distributed under the GNU General Public License. See `LICENSE` for more information.
