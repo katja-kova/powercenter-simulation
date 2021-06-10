@@ -4,52 +4,11 @@
 
 #include "Participant.h"
 
-int main(int argc, char *argv[]) {
-    std::string mode, ip, port, id;
-
-    Participant *participant = new Participant();
-
-    if (argc > PARAM_COUNT_MIN && argc <= PARAM_COUNT_MAX) {
-
-        // read variables from docker-compose.yml
-        // initialize a new participant
-        mode = argv[1];
-        id = argv[2];
-        ip = argv[3];
-        port = argv[4];
-
-        std::cout << "creating new participant..." << std::endl;
-        std::cout << "mode: " + mode << std::endl;
-        std::cout << "id: " + id << std::endl;
-        std::cout << "host ip: " + participant->getHostIP() << std::endl;
-        std::cout << "destination ip: " + ip << std::endl;
-        std::cout << "destination port: " + port << std::endl;
-
-        try {
-
-            if(mode == "Producer"){
-                participant->createProducer(ip, port, mode, id);
-            } else if (mode == "Consumer"){
-                participant->createConsumer(ip, port, mode, id);
-            } else {
-                std::cout << "ERROR: participant's mode unrecognized" << std::endl;
-            }
-        } catch (char const *c) {
-            std::cout << "ERROR " << std::endl;
-            std::cout << c << std::endl;
-        }
-    } else {
-        std::cout << "ERROR: attributes unavailable "<< std::endl;
-    }
-    return 0;
-}
-
 void Participant::createConsumer(std::string ip, std::string port, std::string mode, std::string id) {
 
      while(true) {
 
          srand (time(NULL));
-         int kw = 0;
          nr += 1;
 
          // CONSUMER
@@ -57,16 +16,19 @@ void Participant::createConsumer(std::string ip, std::string port, std::string m
          // active - 1900-2200 kwH
          // still - 1400-1600 kwH
 
-         int active = rand()%2;
-
-         if(active){
-             kw = (rand() % (2200 + 1 - 1900)) + 1900;
+         if(consmax==0){
+             // clear the kw value
+             conscurr = 0;
          } else {
-             kw = (rand() % (1600 + 1 - 1400)) + 1400;
+             if(conscurr<consmax || consmax==1){
+                 conscurr += generateValue(2200, 1900);
+             } else {
+                 conscurr = 0;
+                 std::cout << "INFO: Threshold is reached. Disabling consumer... "<< std::endl;
+             }
          }
-
-         // create json string
-         std::string data = createJsonObj(nr, id, mode, kw);
+         // create json object
+         std::string data = createJsonObj(nr, id, mode, conscurr);
          // sand data to the server
          UDPsendData(ip, port, data);
          // frequency of packages
@@ -78,64 +40,83 @@ void Participant::createProducer(std::string ip, std::string port, std::string m
 
     while(true) {
         srand (time(NULL));
-        int kw = 0;
         nr += 1; // package sequence number
-
+        std::string data;
         /*---------------------
          * defined id's in docker-compose.yml
          1 windplant
          2 nuclearplant
          3 solarplant
          ---------------------*/
-
-        if (!id.compare("1")) {
+	
+        if (id == "1") {
 
             // WINDPLANT
             // possible amounts:
             // windy - 600-800 kwH
             // still - 400-600 kwH
-
-            int windy = rand()%2;
-
-            if(windy) {
-                kw = (rand() % (800 + 1 -600)) + 600;
+            if(windmax==0){
+                // clear the kw value
+                windcurr = 0;
             } else {
-                kw = (rand() % (600 + 1 -400)) + 400;
+                if(windcurr<windmax || windmax==1){
+                    // generate kw value
+                    windcurr += generateValue(800, 600);
+                } else {
+                    windcurr = 0;
+                    std::cout << "INFO: Threshold is reached. Disabling windplant... "<< std::endl;
+                }
             }
-        } else if (!id.compare("2")) {
+            // create json string
+            data = createJsonObj(nr, id, mode, windcurr);
+
+        } else if (id == "2") {
 
             // NUCLEARPLANT
             // possible amounts:
             // productive - 24000-27000 kwH
             // still - 22000-24000 kwH
 
-            int productive = rand()%2;
-
-            if(productive) {
-                kw = (rand() % (27000 + 1 - 24000)) + 24000;
+            if(nuclmax==0){
+                // clear the kw value
+                nuclcurr = 0;
             } else {
-                kw = (rand() % (24000 + 1 - 22000)) + 22000;
+                if(nuclcurr<nuclmax || nuclmax==1){
+                    // generate kw value
+                    nuclcurr += generateValue(27000, 24000);
+                } else {
+                    nuclcurr = 0;
+                    std::cout << "INFO: Threshold is reached. Disabling nuclearplant... "<< std::endl;
+                }
             }
-        } else if (!id.compare("3")) {
+            // create json string
+            data = createJsonObj(nr, id, mode, nuclcurr);
+
+        } else if (id == "3") {
 
             // SOLARPLANT
             // possible amounts:
             // sunny - 9000-12000 kwH
             // cloudy - 7000-9000 kwH
 
-            int sunny = rand()%2;
-
-            if(sunny) {
-                kw = (rand() % (12000 + 1 - 9000)) + 9000;
+            if(solmax==0){
+                // clear the kw value
+                solcurr = 0;
             } else {
-                kw = (rand() % (9000 + 1 - 7000)) + 7000;
+                if(solcurr<solmax || solmax==1){
+                    // generate kw value
+                    solcurr += generateValue(12000, 9000);
+                } else {
+                    solcurr = 0;
+                    std::cout << "INFO: Threshold is reached. Disabling solarplant... "<< std::endl;
+                }
             }
+            // create json string
+            data = createJsonObj(nr, id, mode, solcurr);
         } else {
             std::cerr << "ERROR: Producer type undefined" << std::endl;
         }
 
-        // create json string
-        std::string data = createJsonObj(nr, id, mode, kw);
         // sand data to the server
         UDPsendData(ip, port, data);
         // frequency of packages
@@ -249,3 +230,34 @@ std::string Participant::createJsonObj(int nr, std::string id, std::string mode,
 
     return data;
 }
+
+void Participant::setValue(std::string id, std::string value) {
+    std::cout << "INFO: received id: " << id << ", value: " << value << std::endl;
+    if(id == "1"){ // case WINDPLANT
+        windmax = std::stoi(value);
+    } else if(id == "2") { // case NUCLEARPLANT
+        nuclmax = std::stoi(value);
+    } else if(id == "3") { // case SOLARPLANT
+        solmax = std::stoi(value);
+    } else if(id == "4") { // case FARM
+        consmax = std::stoi(value);
+    } else {
+        std::cout << "ERROR: Invalid `id` / `value` received from RPC "<< std::endl;
+    }// */
+
+}
+int Participant::generateValue(int max, int min) {
+
+    int active = rand()%2;
+    int nmax = max-400;
+    int nmin = min-400;
+    int result = 0;
+
+    if(active){
+        result = (rand() % (max + 1 - min) + min);
+    } else {
+        result = (rand() % (nmax + 1 - nmin) + nmin);
+    }
+    return result;
+}
+

@@ -1,31 +1,61 @@
 version: '3.7'
 
 services:
- 
+
   powercenter:
     image: koda_powercenter
     container_name: powercenter
     environment:
+      POWERCENTER_RPC_PORT: 50001
       POWERCENTER_UDP_PORT: 50000
       POWERCENTER_TCP_PORT: 80
     restart: unless-stopped
     ports:
       - 80:80
       - 50000:50000/udp
+      - 50001:50001
     networks:
       powernetwork:
         ipv4_address: 172.20.0.60
+
+  external:
+    image: koda_external
+    container_name: external
+    environment:
+      REQUEST_TARGET_IP: 172.20.0.60
+      REQUEST_TARGET_PORT: 50001
+      RESPONSE_PAGE_SIZE: 10000
+    networks:
+      powernetwork:
+    depends_on:
+    - powercenter
+    - windplant
+    - nuclearplant
+    - solarplant
+    - farm
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: koda_broker
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:mosquitto/config/mosquitto.conf
+    networks:
+      powernetwork:
 
   windplant:
     image: koda_participant
     container_name: windplant
     environment:
-      participantMode: Producer
-      participantID: 1
-      participantDesIP: 172.20.0.60
-      participantDesPort: 50000
+      PARTICIPANT_MODE: Producer
+      PARTICIPANT_ID: 1
+      PARTICIPANT_DES_IP: 172.20.0.60
+      PARTICIPANT_DES_PORT: 50000
+      PARTICIPANT_RPC_PORT: 50001
     networks:
       powernetwork:
+        ipv4_address: 172.20.0.10
     depends_on:
     - powercenter
 
@@ -33,12 +63,14 @@ services:
     image: koda_participant
     container_name: nuclearplant
     environment:
-      participantMode: Producer
-      participantID: 2
-      participantDesIP: 172.20.0.60
-      participantDesPort: 50000
+      PARTICIPANT_MODE: Producer
+      PARTICIPANT_ID: 2
+      PARTICIPANT_DES_IP: 172.20.0.60
+      PARTICIPANT_DES_PORT: 50000
+      PARTICIPANT_RPC_PORT: 50001
     networks:
       powernetwork:
+        ipv4_address: 172.20.0.20
     depends_on:
     - powercenter
 
@@ -46,12 +78,14 @@ services:
     image: koda_participant
     container_name: solarplant
     environment:
-      participantMode: Producer
-      participantID: 3
-      participantDesIP: 172.20.0.60
-      participantDesPort: 50000
+      PARTICIPANT_MODE: Producer
+      PARTICIPANT_ID: 3
+      PARTICIPANT_DES_IP: 172.20.0.60
+      PARTICIPANT_DES_PORT: 50000
+      PARTICIPANT_RPC_PORT: 50001
     networks:
       powernetwork:
+        ipv4_address: 172.20.0.30
     depends_on:
     - powercenter
 
@@ -59,12 +93,14 @@ services:
     image: koda_participant
     container_name: farm
     environment:
-      participantMode: Consumer
-      participantID: 4
-      participantDesIP: 172.20.0.60
-      participantDesPort: 50000
+      PARTICIPANT_MODE: Consumer
+      PARTICIPANT_ID: 4
+      PARTICIPANT_DES_IP: 172.20.0.60
+      PARTICIPANT_DES_PORT: 50000
+      PARTICIPANT_RPC_PORT: 50001
     networks:
       powernetwork:
+        ipv4_address: 172.20.0.40
     depends_on:
     - powercenter
  

@@ -16,6 +16,7 @@
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <map>
 
 #define BUFFERSIZE 1024
 #define BUFFERSIZE_TCP 4096
@@ -38,8 +39,15 @@ public:
 	bool sendHTTP_Response(int fsock, struct sockaddr_in clientAddr, unsigned ResponseCode, std::string UserAgent = "", std::string BodyMessage = "", std::string ContentType = "application/json");
 	bool logHTTP_Reply(struct sockaddr_in clientAddr, std::string UserAgent, unsigned ResponseCode, int numBytes);
 	int saveUDP_Data(char* data);
+	std::string getIP(unsigned id) {
+		return this->lastSeen[id];
+	}
+	void updateLastSeen(unsigned id, std::string ip) {
+		this->lastSeen[id] = ip;
+	}
 private:
 	FileInterface* f;
+	std::map<unsigned, std::string> lastSeen;
 };
 
 #endif // UTIL_H

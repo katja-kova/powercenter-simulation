@@ -210,6 +210,7 @@ int Util::saveUDP_Data(char* data) {
             std::cerr << "ERROR: Received duplicate or old package!\n";
         } else {
                     df->fwrite(datastring);
+		    strcpy(data, id);
         }
         delete df;
         } catch(std::exception &e) {

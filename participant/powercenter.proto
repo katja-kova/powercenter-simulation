@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "ex.grpc";
+
+package powercenter;
+
+service ParticipantService {
+    rpc GetData (DataRequest) returns (DataResponse) {}
+}
+
+message DataRequest {
+    string id = 1;
+    string value = 2;
+}
+
+message DataResponse {
+    string result = 1;
+}

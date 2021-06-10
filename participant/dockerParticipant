@@ -1,16 +1,15 @@
-#FROM docker.io/ubuntu:latest
 FROM koda_baseimg
-ENV participantMode "$participantMode"
-ENV participantID "$participantID"
-ENV participantDesIP "$participantDesIP"
-ENV participantDesPort "$participantDesPort"
 
-#RUN apt-get update && apt-get upgrade -y && apt-get install make g++ -y
-#RUN apt-get install --reinstall pkg-config cmake-data -y
+ENV PARTICIPANT_MODE "PARTICIPANT_MODE"
+ENV PARTICIPANT_ID "PARTICIPANT_ID"
+ENV PARTICIPANT_DES_IP "PARTICIPANT_DES_IP"
+ENV PARTICIPANT_DES_PORT "PARTICIPANT_DES_PORT"
+ENV PARTICIPANT_RPC_PORT "PARTICIPANT_RPC_PORT"
 
-COPY . /usr/src/participant/
-WORKDIR /usr/src/participant/
+RUN rm -rf /app/cpp/src; mkdir -p /app/cpp/src
+COPY . /app/cpp/src
+WORKDIR /app/cpp/src/cmake/build
 
-RUN make
-RUN make clean
-CMD ./participant $participantMode $participantID $participantDesIP $participantDesPort
+RUN cmake -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR -Wno-dev ../..; make -j 16
+RUN rm -f *.cc *.h Makefile CMakeCache.txt *.cmake
+CMD ./participant PARTICIPANT_MODE PARTICIPANT_ID PARTICIPANT_DES_IP PARTICIPANT_DES_PORT

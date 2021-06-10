@@ -1,14 +1,11 @@
 FROM koda_baseimg
-ENV POWERCENTER_UDP_PORT=50000
-ENV POWERCENTER_TCP_PORT=80
 ENV POWERCENTER_LOG_DIRECTORY="./log/"
 ENV POWERCENTER_DATA_DIRECTORY="./data"
-WORKDIR /var/powercenter
-COPY ./src/ ./
+RUN rm -rf /app/cpp/src; mkdir -p /app/cpp/src
+COPY ./src/ /app/cpp/src
+WORKDIR /app/cpp/src/cmake/build
 RUN mkdir data && touch data/history && touch data/list
 RUN mkdir log && touch log/access.log
-RUN make
-RUN make clean
-EXPOSE 50000/udp
-EXPOSE 80/tcp
-CMD ["./powercenter"]
+RUN cmake -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR -Wno-dev ../..; make -j 16
+RUN rm -f *.cc *.h Makefile CMakeCache.txt *.cmake
+CMD ./powercenter

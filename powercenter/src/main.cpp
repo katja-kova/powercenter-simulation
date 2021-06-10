@@ -12,6 +12,43 @@
 #include "fileinterface.h"
 #include "util.h"
 
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
+#include "powercenter.pb.h"
+#include "powercenter.grpc.pb.h"
+#include "rpcclient.h"
+#include "rpcshistory.h"
+
+using grpc::Channel;
+using grpc::ClientContext;
+using grpc::Server;
+using grpc::ServerContext;
+using grpc::ServerBuilder;
+using grpc::Status;
+
+using powercenter::History;
+using powercenter::ReqHistoryMessage;
+using powercenter::ReplyHistoryMessage;
+
+using powercenter::DataRequest;
+using powercenter::DataResponse;
+
+void loadData(std::string id, std::string value){
+    std::string ip;
+    if (id == "1") {
+        ip = "172.20.0.10:"+std::string(getenv("POWERCENTER_RPC_PORT"));
+    } else if(id == "2") {
+        ip = "172.20.0.20:"+std::string(getenv("POWERCENTER_RPC_PORT"));
+    } else if(id == "3") {
+        ip = "172.20.0.30:"+std::string(getenv("POWERCENTER_RPC_PORT"));
+    } else {
+        ip = "172.20.0.40:"+std::string(getenv("POWERCENTER_RPC_PORT"));
+    }
+    RPCclient rpcclient(grpc::CreateChannel(ip, grpc::InsecureChannelCredentials()));
+    rpcclient.getData(id, value);
+}
+
 int handleTCP(Util* util) {
 	unsigned port = util->cstrtoui(getenv("POWERCENTER_TCP_PORT"));
 	if(port == 0/* || data_dir == NULL*/) {
@@ -71,7 +108,7 @@ int handleTCP(Util* util) {
 		        std::vector<std::string> lines;
 		        std::string l;
 		        unsigned c_off = 0;
-			std::string reply;
+		        std::string reply;
 		        while(c_off < strlen(buf)-1) {
         		        if(*(c_off + buf) == '\r' && *(c_off + buf + 1) == '\n') {
 		                        lines.push_back(l);
@@ -122,35 +159,42 @@ int handleTCP(Util* util) {
 					break;
 				}
 			}
+			size_t splitPos = 0;
 			if(rname == "/") {
 				//Show the "index-Page"
-				fCont = "<html><h1>It works!</h1></html>";
+				fCont = "<html><h1>Welcome to Powercenter!</h1></html>";
 				ContType = "text/html";
+			} else if (rname.find("/set/") == 0 && (splitPos = rname.find("/", 6)) != std::string::npos) {
+				std::string id = rname.substr(5, splitPos-5);
+				std::string value = rname.substr(splitPos+1);
+                fCont = "<html><h2>RPC Call to: </h2><br><h1>ID: </h1> " + std::string(id) + "<h1>Value: </h1>" + std::string(value) + "</html>";
+                ContType = "text/html";
+				loadData(id, value);
 			} else {
 				try {
-					char* DDir = getenv("POWERCENTER_DATA_DIRECTORY");
-					if(DDir == NULL) {
-						util->sendHTTP_Response(fsock, client_addr, 500, userAgent);
-						exit(HTTP_ERROR);
-					}
-					util->getFI()->setFP(std::string(DDir)+rname);
-					if(rname == "/history") {
-						fCont = "[" + util->getFI()->fread()+ "]";
-					} else {
-						if(rname == "/list") {
-							ContType = "text/plain";
-						}
-						fCont = util->getFI()->fread();
-					}
+		                	char *DDir = getenv("POWERCENTER_DATA_DIRECTORY");				
+        		        	if (DDir == NULL) {
+                        			util->sendHTTP_Response(fsock, client_addr, 500, userAgent);
+			                        exit(HTTP_ERROR);
+			                }
+		                    	util->getFI()->setFP(std::string(DDir) + rname);
+		                    	if (rname == "/history") {
+		                        	fCont = "[" + util->getFI()->fread() + "]";
+		                    	} else {
+		                            	if(rname == "/list") {
+		                                	ContType = "text/plain";
+		                            	}
+		                            	fCont = util->getFI()->fread();
+		                        }
 				} catch(std::invalid_argument &e) {
 					std::cerr << e.what() << std::endl;
-					//404, the classic
-					util->sendHTTP_Response(fsock, client_addr, 404, userAgent);
-	                                exit(HTTP_ERROR);
-				}
-			}
-			util->sendHTTP_Response(fsock, client_addr, 200, userAgent, fCont, ContType);
-			exit(NO_ERROR);
+		                        //404, the classic
+		                        util->sendHTTP_Response(fsock, client_addr, 404, userAgent);
+                                        exit(HTTP_ERROR);
+		                }
+	                }
+                	util->sendHTTP_Response(fsock, client_addr, 200, userAgent, fCont, ContType);
+                	exit(NO_ERROR);
 		} else if(pid > 0) {
 			//parent process: close accepting socket
 			close(fsock);
@@ -202,18 +246,49 @@ int handleUDP(Util* util) {
 		std::cout << "INFO: Successfully received UDP-Packet from " << inet_ntoa(client_addr.sin_addr) << std::endl;
         std::cout << "TIMESTAMP: " << util->getCurrentTimestamp() << std::endl;
 		util->saveUDP_Data(buf);
+		util->updateLastSeen(stoi(std::string(buf)), inet_ntoa(client_addr.sin_addr));
 		
 	}
+}
+
+void RunHistoryServer() {
+	char* ge = getenv("POWERCENTER_RPC_PORT");
+	if(ge == NULL) {
+		std::cerr << "cannot read env-variable: POWERCENTER_RPC_PORT" << std::endl;
+		return;
+	}
+	std::string srv_addr("0.0.0.0:"+std::string(getenv("POWERCENTER_RPC_PORT")));
+	rpcHistoryServer* svc = new rpcHistoryServer();
+	grpc::EnableDefaultHealthCheckService(true);
+	grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+	ServerBuilder b;
+	b.AddListeningPort(srv_addr, grpc::InsecureServerCredentials());
+	b.RegisterService(svc);
+	std::unique_ptr<Server> srv(b.BuildAndStart());
+	std::cout << "Server started and listening on " << srv_addr << std::endl;
+	srv->Wait();
+	delete svc;
 }
 
 int main(int argc, char *argv[]) {
 
 	//generate common stuff
 	Util* util = new Util();
-
-	//fork and continue either with the TCP or UDP socket!
-	int pid;
 	int Errcoll = 0;
+
+	//split off RPC-related stuff
+	int rpcPid;
+	if((rpcPid=fork()) < 0) {
+		std::cerr << "ERROR: cannot fork for grpc-Client" << std::endl;
+		return FORK_ERROR;
+	} else if(rpcPid == 0) {
+		//child process: start rpcHistoryServer
+		RunHistoryServer();
+	}// */
+	//parent process: continue to TCP/UDP section.
+	
+	//fork again and continue either with the TCP or UDP socket!
+	int pid;
 	if((pid=fork())<0) {
 		std::cerr << "ERROR: cannot fork for UDP/TCP requests!" << std::endl;
 		return FORK_ERROR;

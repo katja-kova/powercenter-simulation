@@ -16,7 +16,10 @@
 
 | Was wurde getestet? | Wie wurde getestet? | Erwartetes Ergebnis | Tatsächliches Ergebnis
 | ----------- | ----------- | ----------- | ----------- |
-| ... | ....| ...| ... |
+| Externe Anfragen | Eine RPC-Anfrage wird geschickt | Die Anfrage wird bearbeitet | Die Anfrage wird bearbeitet und gestückelt (nach RPC-Übergabeparametern) zurückgegeben. |
+| REST-API | Die maximal produzierte Strommenge oder Wert 0 bei der Deaktivierung werden eingegeben. | Der eingegebene Wert wird eingelesen und festgelegt. | Der eingegebene Wert wird eingelesen und festgelegt, wenn man für einen bestimmten Erzeuger/Verbraucher die Strommenge definiert. |
+| Bearbeitung von RPC | Es wird eine RPC-Anfrage mit dem neuen Wert an Participant geschickt. | Der Wert mit der Strommenge wird empfangen und demensprechend angepasst. | Der ansprechende Participant liest den neuen Wert ein und passt seine Strommenge an. |
+| Dauer der Anfragen | Mithilfe von Timestamps im Code vor und nach dem Funktionsaufruf. | ca. 15-20ms pro Aufruf| ca. 13-70ms pro Aufruf |
 
 ### 3 MoM mittels MQTT
 
