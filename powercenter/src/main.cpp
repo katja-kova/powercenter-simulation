@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string.h>
+#include <thread>
 #include "fileinterface.h"
 #include "util.h"
 
@@ -19,6 +20,8 @@
 #include "powercenter.grpc.pb.h"
 #include "rpcclient.h"
 #include "rpcshistory.h"
+
+#include "myMosq.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -245,10 +248,20 @@ int handleUDP(Util* util) {
 		}
 		std::cout << "INFO: Successfully received UDP-Packet from " << inet_ntoa(client_addr.sin_addr) << std::endl;
         std::cout << "TIMESTAMP: " << util->getCurrentTimestamp() << std::endl;
-		util->saveUDP_Data(buf);
-		util->updateLastSeen(stoi(std::string(buf)), inet_ntoa(client_addr.sin_addr));
+		if(util->saveUDP_Data(buf) == NO_ERROR) {
+			util->updateLastSeen(stoi(std::string(buf)), inet_ntoa(client_addr.sin_addr));
+		}
 		
 	}
+}
+// */
+
+void handleMqttMessage(struct mosquitto* _mosq, void* _dobj, const struct mosquitto_message* msg) {
+	std::cout << "INFO: MQTT-message received!\n";
+	std::string buf = mqtt_client::msg2string(msg);
+	Util* u = new Util();
+	u->saveUDP_Data((char*)buf.c_str());
+	std::cerr << "INFO: MQTT-message saved!\n";
 }
 
 void RunHistoryServer() {
@@ -265,7 +278,7 @@ void RunHistoryServer() {
 	b.AddListeningPort(srv_addr, grpc::InsecureServerCredentials());
 	b.RegisterService(svc);
 	std::unique_ptr<Server> srv(b.BuildAndStart());
-	std::cout << "Server started and listening on " << srv_addr << std::endl;
+	std::cout << "STARTUP: Server started and listening on " << srv_addr << std::endl;
 	srv->Wait();
 	delete svc;
 }
@@ -276,31 +289,23 @@ int main(int argc, char *argv[]) {
 	Util* util = new Util();
 	int Errcoll = 0;
 
-	//split off RPC-related stuff
-	int rpcPid;
-	if((rpcPid=fork()) < 0) {
-		std::cerr << "ERROR: cannot fork for grpc-Client" << std::endl;
-		return FORK_ERROR;
-	} else if(rpcPid == 0) {
-		//child process: start rpcHistoryServer
-		RunHistoryServer();
-	}// */
-	//parent process: continue to TCP/UDP section.
-	
-	//fork again and continue either with the TCP or UDP socket!
-	int pid;
-	if((pid=fork())<0) {
-		std::cerr << "ERROR: cannot fork for UDP/TCP requests!" << std::endl;
-		return FORK_ERROR;
-	} else if(pid == 0) {
-		//child process: handle TCP/HTTP-Requests
-		Errcoll |= handleTCP(util); //returns TCP_ERROR (socket) or HTTP_ERROR (HTTP) on failure, NO_ERROR on success
-	} else if(pid > 0) {
-		//parent process: handle UDP-Requests
-		Errcoll |= handleUDP(util); //returns UDP_ERROR on failure, NO_ERROR on success
-	} else {
-		std::cerr << "ERROR: something catastrophic happened! pid is no valid number!\n";
-		exit(FORK_ERROR);
-	}
-	return Errcoll;
+	std::cout << "STARTUP: grpc init\n";
+	std::thread T_grpc_History 	= std::thread(RunHistoryServer);
+	std::cout << "STARTUP: Websockets init\n";
+	std::thread T_TCP 		= std::thread(handleTCP, util);
+	std::thread T_UDP		= std::thread(handleUDP, util);
+	std::cout << "STARTUP: mqtt init\n";
+	mqtt_client* mqtt = mqtt_client::getInstance();
+	if(mqtt == nullptr) {
+		std::cerr << "ERROR: Failed to initialize mqtt client!\n";
+		return 1;
+        }
+        mqtt->setCallback(handleMqttMessage);
+        std::string topic = "data/#";
+        mqtt->subscribe(topic.c_str());
+	mqtt->initInfiniteLoop();
+	T_grpc_History.join();
+	T_TCP.join();
+	T_UDP.join();
+	return 0;
 }

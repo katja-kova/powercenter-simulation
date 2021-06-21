@@ -9,6 +9,10 @@ services:
       POWERCENTER_RPC_PORT: 50001
       POWERCENTER_UDP_PORT: 50000
       POWERCENTER_TCP_PORT: 80
+      POWERCENTER_MQTT_ID: Center_1
+      POWERCENTER_MQTT_HOST: koda_broker
+      POWERCENTER_MQTT_PORT: 1883
+      POWERCENTER_MQTT_TIMEOUT: 60
     restart: unless-stopped
     ports:
       - 80:80
@@ -17,6 +21,8 @@ services:
     networks:
       powernetwork:
         ipv4_address: 172.20.0.60
+    depends_on:
+    - mosquitto
 
   external:
     image: koda_external
@@ -33,14 +39,13 @@ services:
     - nuclearplant
     - solarplant
     - farm
+    - city_large
 
   mosquitto:
-    image: eclipse-mosquitto
+    image: koda_mqtt
     container_name: koda_broker
     ports:
       - "1883:1883"
-    volumes:
-      - ./mosquitto/mosquitto.conf:mosquitto/config/mosquitto.conf
     networks:
       powernetwork:
 
@@ -53,6 +58,16 @@ services:
       PARTICIPANT_DES_IP: 172.20.0.60
       PARTICIPANT_DES_PORT: 50000
       PARTICIPANT_RPC_PORT: 50001
+      PARTICIPANT_SLEEP_DURATION: 20
+      PARTICIPANT_USE_UDP: 1
+      PARTICIPANT_USE_MQTT: 1
+      PARTICIPANT_KW_MAX: 500
+      PARTICIPANT_KW_MIN: 10
+      PARTICIPANT_KW_FLUCT: 0.1
+      MQTT_ID: Participant_1
+      MQTT_HOST: koda_broker
+      MQTT_PORT: 1883
+      MQTT_TIMEOUT: 60
     networks:
       powernetwork:
         ipv4_address: 172.20.0.10
@@ -68,6 +83,15 @@ services:
       PARTICIPANT_DES_IP: 172.20.0.60
       PARTICIPANT_DES_PORT: 50000
       PARTICIPANT_RPC_PORT: 50001
+      PARTICIPANT_SLEEP_DURATION: 25
+      PARTICIPANT_USE_MQTT: 1
+      PARTICIPANT_KW_MAX: 50000
+      PARTICIPANT_KW_MIN: 1000
+      PARTICIPANT_KW_FLUCT: 0.001
+      MQTT_ID: Participant_2
+      MQTT_HOST: koda_broker
+      MQTT_PORT: 1883
+      MQTT_TIMEOUT: 60
     networks:
       powernetwork:
         ipv4_address: 172.20.0.20
@@ -83,6 +107,15 @@ services:
       PARTICIPANT_DES_IP: 172.20.0.60
       PARTICIPANT_DES_PORT: 50000
       PARTICIPANT_RPC_PORT: 50001
+      PARTICIPANT_SLEEP_DURATION: 25
+      PARTICIPANT_USE_MQTT: 1
+      PARTICIPANT_KW_MAX: 2000
+      PARTICIPANT_KW_MIN: 5
+      PARTICIPANT_KW_FLUCT: 0.2
+      MQTT_ID: Participant_3
+      MQTT_HOST: koda_broker
+      MQTT_PORT: 1883
+      MQTT_TIMEOUT: 60
     networks:
       powernetwork:
         ipv4_address: 172.20.0.30
@@ -98,12 +131,44 @@ services:
       PARTICIPANT_DES_IP: 172.20.0.60
       PARTICIPANT_DES_PORT: 50000
       PARTICIPANT_RPC_PORT: 50001
+      PARTICIPANT_SLEEP_DURATION: 25
+      PARTICIPANT_USE_UDP: 1
+      PARTICIPANT_KW_MAX: 100
+      PARTICIPANT_KW_MIN: 10
+      PARTICIPANT_KW_FLUCT: 0.5
+      MQTT_ID: Participant_4
+      MQTT_HOST: koda_broker
+      MQTT_PORT: 1883
+      MQTT_TIMEOUT: 60
     networks:
       powernetwork:
         ipv4_address: 172.20.0.40
     depends_on:
     - powercenter
  
+  city_large:
+    image: koda_participant
+    container_name: frankburg
+    environment:
+      PARTICIPANT_MODE: Consumer
+      PARTICIPANT_ID: 5
+      PARTICIPANT_DES_IP: 172.20.0.60
+      PARTICIPANT_DES_PORT: 50000
+      PARTICIPANT_RPC_PORT: 50001
+      PARTICIPANT_SLEEP_DURATION: 25
+      PARTICIPANT_USE_MQTT: 1
+      PARTICIPANT_KW_MAX: 900000
+      PARTICIPANT_KW_MIN: 1000
+      PARTICIPANT_KW_FLUCT: 0.75
+      MQTT_ID: Participant_5
+      MQTT_HOST: koda_broker
+      MQTT_PORT: 1883
+      MQTT_TIMEOUT: 60
+    networks:
+      powernetwork:
+        ipv4_address: 172.20.0.50
+    depends_on:
+    - powercenter
 networks:
   powernetwork:
     external: true

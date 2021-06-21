@@ -3,128 +3,61 @@
 //
 
 #include "Participant.h"
+/*
+public:
+    Participant();
+    std::string getHostIP();
+    static void setValue(std::string id, std::string value);
+    int generateValue(int max, int min);
+    void createParticipant (std::string ip, std::string port, std::string mode, std::string id);
 
-void Participant::createConsumer(std::string ip, std::string port, std::string mode, std::string id) {
+private:
+    int kwCurrent;
+    int kwEnvMax;
+    int kwEnvMin;
+    int kwSetMax;
+    int kwFluct;
+    int sendLimited;
+    int MsgNr;
+    std::string mode, id, ip, port;
+    mqtt_client* mqtt;
 
-     while(true) {
-
-         srand (time(NULL));
-         nr += 1;
-
-         // CONSUMER
-         // possible amounts:
-         // active - 1900-2200 kwH
-         // still - 1400-1600 kwH
-
-         if(consmax==0){
-             // clear the kw value
-             conscurr = 0;
-         } else {
-             if(conscurr<consmax || consmax==1){
-                 conscurr += generateValue(2200, 1900);
-             } else {
-                 conscurr = 0;
-                 std::cout << "INFO: Threshold is reached. Disabling consumer... "<< std::endl;
-             }
-         }
-         // create json object
-         std::string data = createJsonObj(nr, id, mode, conscurr);
-         // sand data to the server
-         UDPsendData(ip, port, data);
-         // frequency of packages
-         sleep(50);
-     }
-}
-
-void Participant::createProducer(std::string ip, std::string port, std::string mode, std::string id) {
-
-    while(true) {
-        srand (time(NULL));
-        nr += 1; // package sequence number
-        std::string data;
-        /*---------------------
-         * defined id's in docker-compose.yml
-         1 windplant
-         2 nuclearplant
-         3 solarplant
-         ---------------------*/
-	
-        if (id == "1") {
-
-            // WINDPLANT
-            // possible amounts:
-            // windy - 600-800 kwH
-            // still - 400-600 kwH
-            if(windmax==0){
-                // clear the kw value
-                windcurr = 0;
-            } else {
-                if(windcurr<windmax || windmax==1){
-                    // generate kw value
-                    windcurr += generateValue(800, 600);
-                } else {
-                    windcurr = 0;
-                    std::cout << "INFO: Threshold is reached. Disabling windplant... "<< std::endl;
-                }
-            }
-            // create json string
-            data = createJsonObj(nr, id, mode, windcurr);
-
-        } else if (id == "2") {
-
-            // NUCLEARPLANT
-            // possible amounts:
-            // productive - 24000-27000 kwH
-            // still - 22000-24000 kwH
-
-            if(nuclmax==0){
-                // clear the kw value
-                nuclcurr = 0;
-            } else {
-                if(nuclcurr<nuclmax || nuclmax==1){
-                    // generate kw value
-                    nuclcurr += generateValue(27000, 24000);
-                } else {
-                    nuclcurr = 0;
-                    std::cout << "INFO: Threshold is reached. Disabling nuclearplant... "<< std::endl;
-                }
-            }
-            // create json string
-            data = createJsonObj(nr, id, mode, nuclcurr);
-
-        } else if (id == "3") {
-
-            // SOLARPLANT
-            // possible amounts:
-            // sunny - 9000-12000 kwH
-            // cloudy - 7000-9000 kwH
-
-            if(solmax==0){
-                // clear the kw value
-                solcurr = 0;
-            } else {
-                if(solcurr<solmax || solmax==1){
-                    // generate kw value
-                    solcurr += generateValue(12000, 9000);
-                } else {
-                    solcurr = 0;
-                    std::cout << "INFO: Threshold is reached. Disabling solarplant... "<< std::endl;
-                }
-            }
-            // create json string
-            data = createJsonObj(nr, id, mode, solcurr);
-        } else {
-            std::cerr << "ERROR: Producer type undefined" << std::endl;
-        }
-
-        // sand data to the server
-        UDPsendData(ip, port, data);
-        // frequency of packages
-        sleep(50);
+    static std::string getCurrentTimestamp();
+    std::string createJsonObj(int nr, const std::string id, const std::string mode, int kw);
+    int UDPsendData(const std::string &ip, const std::string &port, std::string data);
+    int MQTTSendData();
+};
+// */
+Participant::Participant() {
+    // read variables from docker-compose.yml
+    // and initialize participant with it   
+    std::cerr << "STARTUP: Initializing participant\n";
+    if(getenv("PARTICIPANT_MODE") == NULL || getenv("PARTICIPANT_ID")==NULL || getenv("PARTICIPANT_DES_IP")==NULL || getenv("PARTICIPANT_DES_PORT")==NULL) {
+	std::cerr << "ERROR: Missing some basic environment variable!\n";
+	exit(-1);
     }
+    this->mode = std::string(getenv("PARTICIPANT_MODE"));
+    this->id = std::string(getenv("PARTICIPANT_ID"));
+    this->ip = std::string(getenv("PARTICIPANT_DES_IP"));
+    this->port = std::string(getenv("PARTICIPANT_DES_PORT"));
+    std::cerr << "STARTUP: basic variables set!\n";
+    if(getenv("PARTICIPANT_KW_MAX") == NULL || getenv("PARTICIPANT_KW_MIN")==NULL || getenv("PARTICIPANT_KW_FLUCT")==NULL) {
+        std::cerr << "ERROR: Missing some data environment variable!\n";
+        exit(-1);
+    }
+    this->kwEnvMax = atoi(getenv("PARTICIPANT_KW_MAX"));
+    this->kwEnvMin = atoi(getenv("PARTICIPANT_KW_MIN"));
+    this->kwCurrent = this->kwEnvMin - (this->kwEnvMin-this->kwEnvMax)/2;
+    this->kwSetMax = this->kwEnvMax;
+    this->kwFluct = atof(getenv("PARTICIPANT_KW_FLUCT"));
+    //this->sendLimited = (getenv("PARTICIPANT_LIMIT_MESSAGE_NUMBER") != NULL)? atoi(getenv("PARTICIPANT_LIMIT_MESSAGE_NUMBER")): -1;
+    this->MsgNr = 1;
+    std::cerr << "STARTUP: data variables set!\n";
+    this->mqtt = mqtt_client::getInstance();
+    std::cerr << "STARTUP: mqtt initialized!\n";
 }
 
-int Participant::UDPsendData(const std::string &ip, const std::string &port, std::string data) {
+int Participant::UDPsendData(std::string data) {
 
     int fileDiscriptorID, remoteConnection;
     struct sockaddr_in remoteServAddr, cliAddr;
@@ -132,20 +65,20 @@ int Participant::UDPsendData(const std::string &ip, const std::string &port, std
 
     try {
 
-        h = gethostbyname(ip.c_str());// ip should be a hostname from docker
+        h = gethostbyname(this->ip.c_str());// ip should be a hostname from docker
 
         if (h == NULL) {
             throw "ERROR: unknown host";
         }
 
         std::cout << "INFO: creating connection to server: IP: "
-                  << inet_ntoa(*(struct in_addr *) h->h_addr_list[0]) << " , PORT: " << port << std::endl;
+                  << inet_ntoa(*(struct in_addr *) h->h_addr_list[0]) << " , PORT: " << this->port << std::endl;
 
         remoteServAddr.sin_family = AF_INET;
 
         memcpy((char *) &remoteServAddr.sin_addr.s_addr, h->h_addr_list[0], h->h_length);
 
-        remoteServAddr.sin_port = htons(atoi(port.c_str()));
+        remoteServAddr.sin_port = htons(atoi(this->port.c_str()));
 
         fileDiscriptorID = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -157,7 +90,7 @@ int Participant::UDPsendData(const std::string &ip, const std::string &port, std
         remoteConnection = sendto(fileDiscriptorID, data.c_str(), strlen(data.c_str()) + 1, 0,
                                   (struct sockaddr *) &remoteServAddr, sizeof(remoteServAddr)); //length of ip address
 
-        std::cout << "TIMESTAMP: " << getCurrentTimestamp() << " package nr: "<< nr << std::endl;
+        std::cout << "TIMESTAMP: " << getCurrentTimestamp() << " package nr: "<< this->MsgNr << std::endl;
 
         if (remoteConnection < 0) {
             close(fileDiscriptorID);
@@ -173,6 +106,10 @@ int Participant::UDPsendData(const std::string &ip, const std::string &port, std
         std::cout << "ERROR: UDP failed with: " << std::endl;
         std::cout << c << std::endl;
     }
+    return 0;
+}
+int Participant::MQTTsendData(std::string data) {
+    this->mqtt->publish(std::string("data/"+this->id).c_str(), data.c_str());
     return 0;
 }
 
@@ -220,11 +157,18 @@ std::string Participant::getHostIP() {
     return IPbuffer;
 }
 
-std::string Participant::createJsonObj(int nr, std::string id, std::string mode, int kw){
+std::string Participant::createJsonObj(){
+    //update data
+    if(this->kwSetMax == 0) {
+	kwCurrent = 0;
+    } else {
+	kwCurrent = this->generateValue();
+    }
+    //generate response
     std::stringstream ss;
     std::string data;
 
-    ss << "{\"nr\": " << std::to_string(nr) << "," << "\"id\": " << id << "," << "\"mode\": \"" << mode << "\"," << "\"value\": " << std::to_string(kw) << "}";
+    ss << "{\"nr\": " << std::to_string(this->MsgNr++) << "," << "\"id\": " << this->id << "," << "\"mode\": \"" << this->mode << "\"," << "\"value\": " << std::to_string(kwCurrent) << "}";
 
     data = ss.str();
 
@@ -233,30 +177,26 @@ std::string Participant::createJsonObj(int nr, std::string id, std::string mode,
 
 void Participant::setValue(std::string id, std::string value) {
     std::cout << "INFO: received id: " << id << ", value: " << value << std::endl;
-    if(id == "1"){ // case WINDPLANT
-        windmax = std::stoi(value);
-    } else if(id == "2") { // case NUCLEARPLANT
-        nuclmax = std::stoi(value);
-    } else if(id == "3") { // case SOLARPLANT
-        solmax = std::stoi(value);
-    } else if(id == "4") { // case FARM
-        consmax = std::stoi(value);
+    if(id != this->id) {
+	std::cerr << "ERROR: received wrong id!\n";
     } else {
-        std::cout << "ERROR: Invalid `id` / `value` received from RPC "<< std::endl;
-    }// */
-
+	if(stoi(value) == 1) {
+	    this->kwSetMax = this->kwEnvMax;
+	} else {
+	    this->kwSetMax = stoi(value);
+	}
+    }
 }
-int Participant::generateValue(int max, int min) {
-
-    int active = rand()%2;
-    int nmax = max-400;
-    int nmin = min-400;
-    int result = 0;
-
-    if(active){
-        result = (rand() % (max + 1 - min) + min);
-    } else {
-        result = (rand() % (nmax + 1 - nmin) + nmin);
+int Participant::generateValue() {
+    int max = (this->kwEnvMax > this->kwSetMax)?this->kwSetMax:this->kwEnvMax;
+    int min = this->kwEnvMin;
+    int diff = max - min;
+    int trend = round((((double)(rand()%11)-5.0)/13)*this->kwFluct*(double)diff);
+    int result = this->kwCurrent + trend;
+    if(result > max) {
+	result = max;
+    } else if(result < min) {
+	result = min;
     }
     return result;
 }

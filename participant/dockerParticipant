@@ -12,4 +12,4 @@ WORKDIR /app/cpp/src/cmake/build
 
 RUN cmake -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR -Wno-dev ../..; make -j 16
 RUN rm -f *.cc *.h Makefile CMakeCache.txt *.cmake
-CMD ./participant PARTICIPANT_MODE PARTICIPANT_ID PARTICIPANT_DES_IP PARTICIPANT_DES_PORT
+CMD ./participant

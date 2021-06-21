@@ -1,4 +1,4 @@
-# Powercenter-Simulation
+# VS21-Kovalchuk-Daebler
 
 ## About The Project
 
@@ -12,22 +12,27 @@ be developed. The following technologies are to be used: Sockets, RPC (Apache Th
 - C++
 - Docker
 - Make
+- gRPC/Protobuf
 
 ## Getting Started
 
 1. Clone the repo
     ```sh
-    git@github.com:katja-kova/powercenter-simulation.git
+    git@code.fbi.h-da.de:istkakova/vs21-kovalchuk-daebler.git
     ```
 2. Build the project
-    ```sh ./build.sh```
-    
+    ```sh
+    ./build.sh
+    ```
 3. Start docker containers
    ```sh
    docker-compose up
     ```
 4. Check the data in the browser under `localhost/history`
 
-## License
+### License
 
 Distributed under the GNU General Public License. See `LICENSE` for more information.
+### Team
+Kateryna Kovalchuk **762835**    
+Fynn Daebler **760412**

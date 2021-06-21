@@ -70,10 +70,15 @@ target_link_libraries(hw_grpc_proto
         ${_GRPC_GRPCPP}
         ${_PROTOBUF_LIBPROTOBUF})
 
-add_executable(participant main.cpp rpcserver.h Participant.cpp Participant.h ${hw_proto_srcs}
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(Mosquitto REQUIRED IMPORTED_TARGET libmosquitto)
+
+add_executable(participant main.cpp rpcserver.h Participant.cpp Participant.h myMosq.h myMosq.cpp ${hw_proto_srcs}
         ${hw_grpc_srcs} )
 target_link_libraries(participant
             hw_grpc_proto
+	    PkgConfig::Mosquitto
             ${_REFLECTION}
             ${_GRPC_GRPCPP}
             ${_PROTOBUF_LIBPROTOBUF})

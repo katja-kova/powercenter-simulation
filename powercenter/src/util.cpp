@@ -208,14 +208,16 @@ int Util::saveUDP_Data(char* data) {
         }
         if(FPnr >= this->Util::cstrtoui(PNr)) {
             std::cerr << "ERROR: Received duplicate or old package!\n";
+	    delete df;
+	    return FILE_ERROR;
         } else {
-                    df->fwrite(datastring);
-		    strcpy(data, id);
+            df->fwrite(datastring);
         }
+	strcpy(data, id);
         delete df;
-        } catch(std::exception &e) {
-                std::cerr << "ERROR: Unable to open REST-file; Error was:" << std::endl << e.what() << std::endl;
-                return FILE_ERROR;
+    } catch(std::exception &e) {
+         std::cerr << "ERROR: Unable to open REST-file; Error was:" << std::endl << e.what() << std::endl;
+         return FILE_ERROR;
     }
 
     try {

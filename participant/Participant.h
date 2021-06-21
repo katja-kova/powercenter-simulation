@@ -26,11 +26,13 @@
 #include <errno.h>
 #include <random>
 #include <sys/types.h>
+#include <cmath>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 #include "powercenter.pb.h"
 #include "powercenter.grpc.pb.h"
+#include "myMosq.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -43,26 +45,27 @@ using powercenter::ParticipantService;
 using powercenter::DataRequest;
 using powercenter::DataResponse;
 
-static int nr=0;
-static int conscurr=0; static int consmax=1;
-static int windcurr=0; static int windmax=1;
-static int solcurr=0; static int solmax=1;
-static int nuclcurr=0; static int nuclmax=1;
-
 class Participant {
 
 public:
+    Participant();
     std::string getHostIP();
-    static void setValue(std::string id, std::string value);
-    int generateValue(int max, int min);
-    void createConsumer (std::string ip, std::string port, std::string mode, std::string id);
-    void createProducer (std::string ip, std::string port, std::string mode, std::string id);
-
+    void setValue(std::string id, std::string value);
+    std::string createJsonObj();
+    int UDPsendData(std::string data);
+    int MQTTsendData(std::string data);
 private:
+    int kwCurrent;
+    int kwEnvMax;
+    int kwEnvMin;
+    int kwSetMax;
+    double kwFluct;
+    int sendLimited;
+    int MsgNr;
+    std::string mode, id, ip, port;
+    mqtt_client* mqtt;
+    int generateValue();
     static std::string getCurrentTimestamp();
-    std::string createJsonObj(int nr, const std::string id, const std::string mode, int kw);
-    int UDPsendData(const std::string &ip, const std::string &port, std::string data);
-
 };
 
 #endif //VS_PARTICIPANT_H

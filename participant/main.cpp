@@ -8,11 +8,8 @@
 #include "Participant.h"
 #include "rpcserver.h"
 
-#define PARAM_COUNT_MIN 4
-#define PARAM_COUNT_MAX 6
-
-
 void runRPCServer(Participant *participant) {
+    std::cout << "starting grpc server\n";
     char* ge = getenv("PARTICIPANT_RPC_PORT");
     if(ge == NULL) {
         std::cerr << "ERROR: Cannot read env-variable: PARTICIPANT_RPC_PORT" << std::endl;
@@ -32,44 +29,48 @@ void runRPCServer(Participant *participant) {
 }
 
 int main(int argc, char *argv[]) {
-    std::string mode, ip, port, id;
-
     Participant *participant = new Participant();
     //split off RPC-related stuff
     std::thread t = std::thread(runRPCServer, participant);
     t.detach();
-
-    if (argc > PARAM_COUNT_MIN && argc <= PARAM_COUNT_MAX) {
-
-        // read variables from docker-compose.yml
-        // initialize a new participant
-        mode = argv[1];
-        id = argv[2];
-        ip = argv[3];
-        port = argv[4];
-
-        std::cout << "creating new participant..." << std::endl;
-        std::cout << "mode: " + mode << std::endl;
-        std::cout << "id: " + id << std::endl;
-        std::cout << "host ip: " + participant->getHostIP() << std::endl;
-        std::cout << "destination ip: " + ip << std::endl;
-        std::cout << "destination port: " + port << std::endl;
-
-        try {
-
-            if(mode == "Producer"){
-                participant->createProducer(ip, port, mode, id);
-            } else if (mode == "Consumer"){
-                participant->createConsumer(ip, port, mode, id);
-            } else {
-                std::cout << "ERROR: participant's mode unrecognized" << std::endl;
-            }
-        } catch (char const *c) {
-            std::cout << "ERROR " << std::endl;
-            std::cout << c << std::endl;
+    srand(time(NULL));
+    std::cout << "INFO: starting data creation\n";
+    try {
+	char* sleepEnv = getenv("PARTICIPANT_SLEEP_DURATION");
+        if(sleepEnv == NULL) {
+	    std::cerr << "ERROR: missing PARTICIPANT_SLEEP_DURATION environment variable!\n";
+            return -1;
         }
-    } else {
-        std::cout << "ERROR: attributes unavailable "<< std::endl;
+	int sleepDur = atoi(sleepEnv);
+	if(sleepDur <1) {
+            std::cerr << "ERROR: invalid value for PARTICIPANT_SLEEP_DURATION environment variable!\n";
+            return -1;
+	}
+	std::cout << "INFO: sending data every " << sleepEnv << "s\n";
+	bool useUDP = (getenv("PARTICIPANT_USE_UDP")!=NULL);
+	bool useMQTT = (getenv("PARTICIPANT_USE_MQTT")!=NULL);
+	if(!(useUDP || useMQTT)) {
+	    std::cerr << "ERROR: Using neither UDP nor MQTT makes no sense, aborting!\n";
+	    return -1;
+	}
+	while(true) {
+	    //update and send data
+	    std::cout << "INFO: generating data\n";
+	    std::string json = participant->createJsonObj();
+	    if(useUDP) {
+		std::cout << "INFO: sending Data via UDP\n";
+		participant->UDPsendData(json);
+	    }
+	    if(useMQTT) {
+		std::cout << "INFO: sending Data via MQTT\n";
+		participant->MQTTsendData(json);
+	    }
+	    //wait as specified
+	    sleep(sleepDur);
+	}
+    } catch (char const *c) {
+        std::cout << "ERROR " << std::endl;
+        std::cout << c << std::endl;
     }
     return 0;
 }

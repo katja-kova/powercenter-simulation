@@ -5,7 +5,7 @@ ENV PATH="/app/.local/bin:$PATH"
 RUN apt-get clean && \
     apt-get update && \
     apt-get dist-upgrade -y
-RUN DEBIAN_FRONTENT=noninteractive apt-get -y --no-install-recommends install tzdata && \
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install tzdata && \
     apt-get install -y --no-install-recommends ca-certificates cmake build-essential libtool autoconf pkg-config git
 RUN mkdir -p /grpc /app/.local
 #installing grpc + protobuf
@@ -21,6 +21,11 @@ RUN rm -rf /grpc
 FROM docker.io/ubuntu:latest AS base
 ENV MY_INSTALL_DIR="/app/.local"
 ENV PATH="/app/.local/bin:$PATH"
-RUN apt-get clean && apt-get update && apt-get dist-upgrade -y && apt-get install make cmake g++ -y
+RUN apt-get clean && apt-get update && apt-get dist-upgrade -y
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install tzdata && \
+    apt-get install make cmake g++ pkg-config libmosquitto-dev libmosquittopp-dev -y
 RUN mkdir -p /app/cpp/src
 COPY --from=builder /app/.local /app/.local
+
+FROM docker.io/eclipse-mosquitto:latest AS mqtt
+COPY mosquitto.conf mosquitto/config/mosquitto.conf
