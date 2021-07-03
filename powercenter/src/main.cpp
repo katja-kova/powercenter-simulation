@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <thread>
+#include <chrono>
 #include "fileinterface.h"
 #include "util.h"
 
@@ -20,6 +21,7 @@
 #include "powercenter.grpc.pb.h"
 #include "rpcclient.h"
 #include "rpcshistory.h"
+#include "rpcchistory.h"
 
 #include "myMosq.h"
 
@@ -37,8 +39,10 @@ using powercenter::ReplyHistoryMessage;
 using powercenter::DataRequest;
 using powercenter::DataResponse;
 
-void loadData(std::string id, std::string value){
-    std::string ip;
+std::vector<mqtt_client*> mqtt_fwds;
+
+void loadData(Util* util, std::string id, std::string value){
+/*    std::string ip;
     if (id == "1") {
         ip = "172.20.0.10:"+std::string(getenv("POWERCENTER_RPC_PORT"));
     } else if(id == "2") {
@@ -47,9 +51,10 @@ void loadData(std::string id, std::string value){
         ip = "172.20.0.30:"+std::string(getenv("POWERCENTER_RPC_PORT"));
     } else {
         ip = "172.20.0.40:"+std::string(getenv("POWERCENTER_RPC_PORT"));
-    }
-    RPCclient rpcclient(grpc::CreateChannel(ip, grpc::InsecureChannelCredentials()));
-    rpcclient.getData(id, value);
+    }*/
+	std::string ip = util->getIP(stoi(id));
+	RPCclient rpcclient(grpc::CreateChannel(ip, grpc::InsecureChannelCredentials()));
+	rpcclient.getData(id, value);
 }
 
 int handleTCP(Util* util) {
@@ -172,7 +177,7 @@ int handleTCP(Util* util) {
 				std::string value = rname.substr(splitPos+1);
                 fCont = "<html><h2>RPC Call to: </h2><br><h1>ID: </h1> " + std::string(id) + "<h1>Value: </h1>" + std::string(value) + "</html>";
                 ContType = "text/html";
-				loadData(id, value);
+				loadData(util, id, value);
 			} else {
 				try {
 		                	char *DDir = getenv("POWERCENTER_DATA_DIRECTORY");				
@@ -260,8 +265,22 @@ void handleMqttMessage(struct mosquitto* _mosq, void* _dobj, const struct mosqui
 	std::cout << "INFO: MQTT-message received!\n";
 	std::string buf = mqtt_client::msg2string(msg);
 	Util* u = new Util();
-	u->saveUDP_Data((char*)buf.c_str());
-	std::cerr << "INFO: MQTT-message saved!\n";
+	if(u->saveUDP_Data((char*)buf.c_str()) == NO_ERROR) {
+		std::cout << "INFO: MQTT-message saved!\n";
+	} else {
+		std::cerr << "ERROR: unable to save MQTT-message\n";
+	}
+	//mosquitto_message_free((struct mosquitto_message**)&msg);
+}
+
+void forwardMqttMessage(struct mosquitto* _mosq, void* _dobj, const struct mosquitto_message* msg) {
+	std::string msgStr = mqtt_client::msg2string(msg);
+	std::cout << "Forwarding message: " << msgStr << std::endl;
+	for(mqtt_client* c : mqtt_fwds) {
+		c->publish((char*) std::string("data/fwd").c_str(), (char*) msgStr.c_str());
+	}
+	handleMqttMessage(_mosq, _dobj, msg);
+	//mosquitto_message_free((struct mosquitto_message**)&msg);
 }
 
 void RunHistoryServer() {
@@ -283,18 +302,59 @@ void RunHistoryServer() {
 	delete svc;
 }
 
-int main(int argc, char *argv[]) {
+void runMqttInfLoop(mqtt_client* m) {
+	m->initInfiniteLoop();
+}
 
+void mqttManualReconnect(struct mosquitto* mosq, void* obj, int rc) {
+	std::cout << "WARN: Disconnected Mqtt-Client: " << mosquitto_strerror(rc) << std::endl;
+	if(mosquitto_reconnect(mosq) == MOSQ_ERR_SUCCESS) {
+		std::cout << "INFO: Reconnecting successful!\n";
+	} else {
+		std::cerr << "ERROR: Reconnection failed!\n";
+	}
+}
+
+int main(int argc, char *argv[]) {
+	std::chrono::steady_clock::time_point begin, end;
+	begin = std::chrono::steady_clock::now();
 	//generate common stuff
 	Util* util = new Util();
 	int Errcoll = 0;
-
 	std::cout << "STARTUP: grpc init\n";
+	//get data from other servers via grpc in case of restart
+	if(getenv("POWERCENTER_GRPC_COPY_HOST")==NULL || getenv("POWERCENTER_GRPC_COPY_PORT") == NULL) {
+		std::cout << "WARN: Missing grpc copy host or port configuration to get data after restart! Skipping copy on startup!\n";
+	} else {
+		char* grpcInitHost = getenv("POWERCENTER_GRPC_COPY_HOST");
+		char* grpcInitPort = getenv("POWERCENTER_GRPC_COPY_PORT");
+		int grpcInitPageSize = 10000;
+		if(getenv("POWERCENTER_GRPC_COPY_PAGESIZE") == NULL) {
+			std::cout << "WARN: No Page Size for grpc initialization set, using default of 10000.\n";
+		} else {
+			grpcInitPageSize = atoi(getenv("POWERCENTER_GRPC_COPY_PAGESIZE"));
+		}
+		int numPages = 0;
+		std::string grpcInitTarget = std::string(grpcInitHost) + ":" + std::string(grpcInitPort);
+		rpcHistoryClient grpcInit(grpc::CreateChannel(grpcInitTarget, grpc::InsecureChannelCredentials()));
+		std::string history = grpcInit.getHistory(grpcInitPageSize, &numPages);
+		if(numPages == 0) {
+			std::cout << "WARN: received no history during grpc init. This is normal only during cluster startup.\n";
+			//trying alternate?
+		} else {
+			char *DDir = getenv("POWERCENTER_DATA_DIRECTORY");
+			util->getFI()->setFP(std::string(DDir) + "/history");
+			util->getFI()->fwrite(history);
+			std::cout << "STARTUP: copied history from " << grpcInitHost << std::endl;
+		}
+	}
+	
 	std::thread T_grpc_History 	= std::thread(RunHistoryServer);
 	std::cout << "STARTUP: Websockets init\n";
 	std::thread T_TCP 		= std::thread(handleTCP, util);
 	std::thread T_UDP		= std::thread(handleUDP, util);
 	std::cout << "STARTUP: mqtt init\n";
+	
 	mqtt_client* mqtt = mqtt_client::getInstance();
 	if(mqtt == nullptr) {
 		std::cerr << "ERROR: Failed to initialize mqtt client!\n";
@@ -303,7 +363,43 @@ int main(int argc, char *argv[]) {
         mqtt->setCallback(handleMqttMessage);
         std::string topic = "data/#";
         mqtt->subscribe(topic.c_str());
-	mqtt->initInfiniteLoop();
+	
+	char* id = getenv("POWERCENTER_MQTT_ID");
+        char* host = getenv("POWERCENTER_MQTT_HOST");
+        char* cs_port = getenv("POWERCENTER_MQTT_PORT");
+        char* cs_keepalive = getenv("POWERCENTER_MQTT_TIMEOUT");
+        if(id == NULL || host == NULL || cs_port == NULL || cs_keepalive == NULL) {
+		std::cerr << "ERROR: Missing Environment parameter for MQTT!\n";
+		return -1;
+	}
+	int port = atoi(cs_port);
+	int keepalive = atoi(cs_keepalive);
+	if(port < 1 || keepalive < 0) {
+		std::cerr << "Invalid port or keepalive time\n";
+	}
+        mqtt_client* mqttFwdReader = new mqtt_client((char*)(std::string(id)+"_fwd").c_str(), host, port, keepalive);
+//	mqtt_fwds.push_back(mqttFwdReader);
+	char* remotes = getenv("POWERCENTER_MQTT_FWDS");
+	if(remotes != NULL) {
+		char* r = strtok(remotes, " ");
+		while(r != NULL) {
+			std::cout << "STARTUP: Adding host as forwarding target: " << r << std::endl;
+			mqtt_fwds.push_back(new mqtt_client((char*)(std::string(id)+"_fwd").c_str(), r, port, keepalive));
+			r = strtok(NULL, " ");
+		}
+	}
+	mqttFwdReader->setCallback(forwardMqttMessage);
+	mqttFwdReader->subscribe(std::string("orig_data/#").c_str());
+	
+	//starting threads
+	std::thread T_MQTT_FWD = std::thread(runMqttInfLoop, mqttFwdReader);
+        std::thread T_MQTT_SAVE = std::thread(runMqttInfLoop, mqtt);
+	end = std::chrono::steady_clock::now();
+	std::cout << "STARTUP: Startup completed in " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]!\n";
+	T_MQTT_SAVE.join();
+	std::cout << "WARN: MQTT save infinite loop thread joined!\n";
+	T_MQTT_FWD.join();
+	std::cout << "WARN: MQTT infinite loop theads joined!\n";
 	T_grpc_History.join();
 	T_TCP.join();
 	T_UDP.join();

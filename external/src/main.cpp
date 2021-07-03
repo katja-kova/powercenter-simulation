@@ -33,13 +33,14 @@ int main(int argc, char *argv[]) {
 	std::string Target = std::string(target_IP)+":"+std::string(target_Port);
 	std::cerr << "Getting data from " << Target << std::endl;
 	rpcHistoryClient HistoryServer(grpc::CreateChannel(Target, grpc::InsecureChannelCredentials()));
+	int numberOfPages = 0;
 	//measure time!
 	std::chrono::steady_clock::time_point begin, end;
 	begin = std::chrono::steady_clock::now();
-	std::cout << HistoryServer.getHistory(pageSize) << std::endl;
+	std::cout << HistoryServer.getHistory(pageSize, &numberOfPages) << std::endl;
 	end = std::chrono::steady_clock::now();
 
-	std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs] needed to get the history.\n";
+	std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs] needed to get the history (" << numberOfPages << " pages).\n";
 
 	return 0;
 }

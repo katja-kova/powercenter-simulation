@@ -73,7 +73,7 @@ target_link_libraries(hw_grpc_proto
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Mosquitto REQUIRED IMPORTED_TARGET libmosquitto)
 
-add_executable(powercenter main.cpp fileinterface.cpp fileinterface.h rpcclient.h rpcshistory.h util.cpp util.h myMosq.h myMosq.cpp ${hw_proto_srcs}
+add_executable(powercenter main.cpp fileinterface.cpp fileinterface.h rpcclient.h rpcshistory.h rpcchistory.cpp rpcchistory.h util.cpp util.h myMosq.h myMosq.cpp ${hw_proto_srcs}
         ${hw_grpc_srcs} )
 target_link_libraries(powercenter
             hw_grpc_proto

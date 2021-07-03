@@ -22,9 +22,9 @@ private:
 	int msgId;
 	int QoS;
 	void* mosqdataobj;
+public:
 	mqtt_client (char* _id, char* _host, int _port, int _keepalive);
 	~mqtt_client();
-public:
 	static mqtt_client* getInstance();
 	void publish(char* topic, char* msg);
 	void subscribe(const char* topicPattern);

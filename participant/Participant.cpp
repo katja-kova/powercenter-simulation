@@ -109,7 +109,7 @@ int Participant::UDPsendData(std::string data) {
     return 0;
 }
 int Participant::MQTTsendData(std::string data) {
-    this->mqtt->publish(std::string("data/"+this->id).c_str(), data.c_str());
+    this->mqtt->publish(std::string("orig_data/"+this->id).c_str(), data.c_str());
     return 0;
 }
 
@@ -168,7 +168,7 @@ std::string Participant::createJsonObj(){
     std::stringstream ss;
     std::string data;
 
-    ss << "{\"nr\": " << std::to_string(this->MsgNr++) << "," << "\"id\": " << this->id << "," << "\"mode\": \"" << this->mode << "\"," << "\"value\": " << std::to_string(kwCurrent) << "}";
+    ss << "{\"nr\": " << std::to_string(this->MsgNr++) << "," << "\"id\": " << this->id << "," << "\"mode\": \"" << this->mode << "\"," << "\"value\": " << std::to_string(kwCurrent) << ", \"ip\": \""<< this->getHostIP() << "\"}";
 
     data = ss.str();
 

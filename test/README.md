@@ -25,4 +25,7 @@
 
 | Was wurde getestet? | Wie wurde getestet? | Erwartetes Ergebnis | Tatsächliches Ergebnis
 | ----------- | ----------- | ----------- | ----------- |
-| ... | ....| ...| ... |
+| Externe Anfragen | Eine Nachricht wird an den MQTT-Container gesendet. | Die Nachricht wird bearbeitet. | Die Nachricht wird empfangen und dementsprechend bearbeitet. |
+| data/# | Das entsprechende Topic wird ausgewählt. | Die Zentrale merkt das Topic. | Die Zentrale merkt das Topic und wertet es aus. |
+| Webserver Abrugbarkeit | Dieper MQTT übermittelten Nachrichten sind per Webserver abrufbar. | Die Anfrage schlägt nicht fehl. | Die Anfrage schlägt nicht fehl, und die Anfrage wird bearbeitet. |
+| Dauer der Anfragen per UDP und MQTT | Mithilfe von Timestamps im Code vor und nach dem Funktionsaufruf. | ca. 7000ms pro MQTT Aufruf, ca. 5000ms pro UDP Anruf | 90-17000ms pro MQTT Aufruf, 250-11000 pro UDP Aufruf |

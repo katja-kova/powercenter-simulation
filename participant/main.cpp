@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <chrono>
 #include "Participant.h"
 #include "rpcserver.h"
 
@@ -59,11 +60,17 @@ int main(int argc, char *argv[]) {
 	    std::string json = participant->createJsonObj();
 	    if(useUDP) {
 		std::cout << "INFO: sending Data via UDP\n";
+		std::chrono::steady_clock::time_point end, begin = std::chrono::steady_clock::now();
 		participant->UDPsendData(json);
+		end = std::chrono::steady_clock::now();
+		std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << " [µs] needed for UDP send operation\n";
 	    }
 	    if(useMQTT) {
 		std::cout << "INFO: sending Data via MQTT\n";
+		std::chrono::steady_clock::time_point end, begin = std::chrono::steady_clock::now();
 		participant->MQTTsendData(json);
+                end = std::chrono::steady_clock::now();
+                std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << " [µs] needed for MQTT send operation\n";
 	    }
 	    //wait as specified
 	    sleep(sleepDur);

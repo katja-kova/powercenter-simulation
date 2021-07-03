@@ -138,98 +138,129 @@ int Util::saveUDP_Data(char* data) {
 		return FILE_ERROR;
 	}
 
-    if(*data != '{' || *(data + strlen(data) -1) != '}') {
-            std::cerr << "ERROR: did not receive JSON-Formatted data!" << std::endl;
-            return FILE_ERROR | UDP_ERROR;
-    }
+    	if(*data != '{' || *(data + strlen(data) -1) != '}') {
+            	std::cerr << "ERROR: did not receive JSON-Formatted data!" << std::endl;
+            	return FILE_ERROR | UDP_ERROR;
+    	}
 	//evaluate id
 
-    char needle[] = "\"id\": ";
-    if(strstr(data, needle) == nullptr) {
-            return FILE_ERROR | UDP_ERROR;
-    }
-    char* spos = strstr(data, needle) + strlen(needle);
-    if(strstr(spos, ",") == nullptr) {
-            return FILE_ERROR | UDP_ERROR;
-    }
-    char* epos = strstr(spos, ",");
-    const size_t len = (epos - spos)+1;
-    char id[len] = {0};
+    	char needle[] = "\"id\": ";
+    	if(strstr(data, needle) == nullptr) {
+            	return FILE_ERROR | UDP_ERROR;
+    	}
+    	char* spos = strstr(data, needle) + strlen(needle);
+	char* epos;
+    	if(strstr(spos, ",") == nullptr) {
+		if(strstr(spos, "}")==nullptr) {
+	        	return FILE_ERROR | UDP_ERROR;
+		} else {
+			epos = strstr(spos, "}");
+		}
+    	} else {
+    		epos = strstr(spos, ",");
+	}
+    	const size_t len = (epos - spos)+1;
+    	char id[len] = {0};
 	strncpy(id, spos, len-1);
-
+	//evaluate ip
+    	needle[2] = 'p';
+	if(strstr(data, needle) == nullptr) {
+		std::cerr << "ERROR: Missing ip-field in message!\n";
+                return FILE_ERROR | UDP_ERROR;
+	}
+	spos = strstr(data, needle)+strlen(needle);
+	if(strstr(spos, ",") == nullptr) {
+		if(strstr(spos, "}") == nullptr) {
+			std::cerr << "ERROR: Missing ip-field in message!\n";
+			return FILE_ERROR | UDP_ERROR;
+		} else {
+			epos = strstr(spos, "}");
+		}
+	} else {
+		epos = strtok(spos, ",");
+	}
+	const size_t iplen = (epos-spos)+1;
+	char ip[iplen] = {0};
+	strncpy(ip, spos+1, iplen-3);
+	//this->updateLastSeen(this->cstrtoui(id), std::string(ip));
+	
 	//evaluate Package number
 	needle[1] = 'n';
 	needle[2] = 'r';
 	if(strstr(data, needle) == nullptr) {
 	    return FILE_ERROR | UDP_ERROR;
-    }
-    spos = strstr(data, needle) + strlen(needle);
-    if(strstr(spos, ",") == nullptr) {
-        return FILE_ERROR | UDP_ERROR;
-    }
-    epos = strstr(spos, ",");
-    const size_t PNrlen = (epos - spos)+1;
+	}
+	spos = strstr(data, needle) + strlen(needle);
+	if(strstr(spos, ",") == nullptr) {
+		if(strstr(spos, "}") == nullptr) {
+	        	return FILE_ERROR | UDP_ERROR;
+		} else {
+			epos = strstr(spos, "}");
+		}
+    	} else {
+	    	epos = strstr(spos, ",");
+	}
+    	const size_t PNrlen = (epos - spos)+1;
 	char PNr[PNrlen] = {0};
-        strncpy(PNr, spos, PNrlen-1);
-	
+        strncpy(PNr, spos, PNrlen-1);	
 	//actually save the data
-    std::cout << "INFO: Saving data for participant #" << id << std::endl;
-    std::string datastring(data), fPath = std::string(DDir);
+    	std::cout << "INFO: Saving data for participant #" << id << std::endl;
+    	std::string datastring(data), fPath = std::string(DDir);
 	fPath += "/" + std::string(id);
 
-    FileInterface* df;
-    if(std::string(id).find("..") != std::string::npos) {
-        std::cerr << "ERROR: tried to save Data above the folder for data!" << std::endl;
-        return FILE_ERROR;
-    }
+    	FileInterface* df;
+	if(std::string(id).find("..") != std::string::npos) {
+        	std::cerr << "ERROR: tried to save Data above the folder for data!" << std::endl;
+        	return FILE_ERROR;
+    	}
 
-    try {
-        FileInterface(fPath, false);
-    } catch (std::exception& e) {
-        fopen(fPath.c_str(), "w+");
-    std::string idStr = (std::string(id)+"\n");
+    	try {
+        	FileInterface(fPath, false);
+    	} catch (std::exception& e) {
+	        fopen(fPath.c_str(), "w+");
+	    	std::string idStr = (std::string(id)+"\n");
+	
+	    	FileInterface* fl = new FileInterface(std::string(DDir) + "/list", true);
+	    	fl->fwrite(idStr);
+	
+	    	delete fl;
+    		std::cout << "INFO: created new file for participant #" << id << std::endl;
+    	}
 
-    FileInterface* fl = new FileInterface(std::string(DDir) + "/list", true);
-    fl->fwrite(idStr);
+    	try {
+        	df = new FileInterface(fPath, false);
+        	unsigned FPnr = 0;
+        	std::vector<std::string> cpack = df->flines(',');
+        	for(int i = 0; i< cpack.size(); i++) {
+        		if(cpack[i].find("\"nr\": ")!= std::string::npos) {
+                		FPnr = stoul(cpack[i].substr(cpack[i].find(":")+1));
+                		break;
+            		}
+        	}
+        	if(FPnr >= this->Util::cstrtoui(PNr)) {
+            		std::cerr << "ERROR: Received duplicate or old package!\n";
+	    		delete df;
+		    	return FILE_ERROR;
+	        } else {
+            		df->fwrite(datastring);
+        	}
+		strcpy(data, id);
+	        delete df;
+    	} catch(std::exception &e) {
+        	std::cerr << "ERROR: Unable to open REST-file; Error was:" << std::endl << e.what() << std::endl;
+         	return FILE_ERROR;
+    	}
 
-    delete fl;
-    std::cout << "INFO: created new file for participant #" << id << std::endl;
-    }
-
-    try {
-        df = new FileInterface(fPath, false);
-        unsigned FPnr = 0;
-        std::vector<std::string> cpack = df->flines(',');
-        for(int i = 0; i< cpack.size(); i++) {
-            if(cpack[i].find("\"nr\": ")!= std::string::npos) {
-                FPnr = stoul(cpack[i].substr(cpack[i].find(":")+1));
-                break;
-            }
-        }
-        if(FPnr >= this->Util::cstrtoui(PNr)) {
-            std::cerr << "ERROR: Received duplicate or old package!\n";
-	    delete df;
-	    return FILE_ERROR;
-        } else {
-            df->fwrite(datastring);
-        }
-	strcpy(data, id);
-        delete df;
-    } catch(std::exception &e) {
-         std::cerr << "ERROR: Unable to open REST-file; Error was:" << std::endl << e.what() << std::endl;
-         return FILE_ERROR;
-    }
-
-    try {
-        FileInterface* f = new FileInterface(std::string(DDir) + "/history", true);
-        if(f->fread() != "") {
-                datastring = ", " + datastring;
-        }
-        f->fwrite(datastring);
-        delete f;
-        return NO_ERROR;
-    } catch(std::exception &e) {
-        std::cerr << "ERROR: Unable to open file!\n";
-        return FILE_ERROR;
-    }
+    	try {
+        	FileInterface* f = new FileInterface(std::string(DDir) + "/history", true);
+        	if(f->fread() != "") {
+                	datastring = ", " + datastring;
+        	}
+        	f->fwrite(datastring);
+        	delete f;
+        	return NO_ERROR;
+    	} catch(std::exception &e) {
+        	std::cerr << "ERROR: Unable to open file!\n";
+        	return FILE_ERROR;
+    	}
 }
