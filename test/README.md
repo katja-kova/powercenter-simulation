@@ -29,3 +29,12 @@
 | data/# | Das entsprechende Topic wird ausgewählt. | Die Zentrale merkt das Topic. | Die Zentrale merkt das Topic und wertet es aus. |
 | Webserver Abrugbarkeit | Dieper MQTT übermittelten Nachrichten sind per Webserver abrufbar. | Die Anfrage schlägt nicht fehl. | Die Anfrage schlägt nicht fehl, und die Anfrage wird bearbeitet. |
 | Dauer der Anfragen per UDP und MQTT | Mithilfe von Timestamps im Code vor und nach dem Funktionsaufruf. | ca. 7000ms pro MQTT Aufruf, ca. 5000ms pro UDP Anruf | 90-17000ms pro MQTT Aufruf, 250-11000 pro UDP Aufruf |
+
+### 4 Hochverfügbarkeit und Konsistenz
+
+| Was wurde getestet? | Wie wurde getestet? | Erwartetes Ergebnis | Tatsächliches Ergebnis
+| ----------- | ----------- | ----------- | ----------- |
+| Dauer des Neustarts inkl. Abruf der Daten | Timestamps im Source-Code | ca. 50-100ms | ca. 200ms - 1000ms
+| Abgleich der persistenten Daten nach Neustart | Abfrage per HTTP-Anfrage | Alle Daten sind "at least once" persistiert | Alle Daten sind "at least once" persistiert
+| Verteilung der Daten, die per MQTT übertragen wurden | Abfrage per HTTP-Anfrage auf allen Powercentern (Client-Liste) | Alle Daten sind "at least once" persistiert | Alle Daten sind "at least once" persistiert
+| keine Verteilung der Daten, die per UDP übertragen wurden | Abfrage per HTTP-Anfrage auf allen Powercentern (Client-Liste) | Alle Daten sind "at most once" persistiert | Alle Daten sind "at most once" persistiert
